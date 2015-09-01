@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=7,IE=9">
+<meta name="viewport" content="initial-scale=1, maximum-scale=1,user-scalable=no">
+<title>GeoCommons archive</title>
+<link rel="shortcut icon" href="//esri.github.io/quickstart-map-js/images/favicon.ico">
+<!-- ArcGIS API for JavaScript CSS-->
+<link rel="stylesheet" href="//js.arcgis.com/3.10/js/esri/css/esri.css">
+<!-- Web Framework CSS - Bootstrap (getbootstrap.com) and Bootstrap-map-js (github.com/esri/bootstrap-map-js) -->
+<link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="//esri.github.io/bootstrap-map-js/src/css/bootstrapmap.css">
+<style>
+    html, body, #mapDiv {
+      height: 100%;
+      width: 100%;
+    }
+    .panel-fixed { width: 400px; }
+    @media (max-width: 600px) {
+        .panel-fixed {
+            width: 250px;
+        }
+    }
+    #dataset-metadata {
+        text-align: left;
+    }
+    #dataset-feature_count, #dataset-attribute_count {
+        font-weight: bold;
+    }
+</style>
+
+<!-- ArcGIS API for JavaScript library references -->
+<script src="//js.arcgis.com/3.10"></script>
+
+<!-- Terraformer reference -->
+<script src="./vendor/terraformer/terraformer.min.js"></script>
+<script src="./vendor/terraformer-arcgis-parser/terraformer-arcgis-parser.min.js"></script>
+
+<script>
+    require(["esri/map",
+        "./src/gclayer.js",
+        "esri/renderers/SimpleRenderer",
+        "dojo/on",
+        "dojo/query",
+        "dojo/dom",
+        "dojo/domReady!"],
+      function (Map, GeoJsonLayer, SimpleRenderer, on, query, dom) {
+        var arcgis_url = "http://www.arcgis.com/home/webmap/viewer.html?url=";
+        var koop_url = arcgis_url + "http://koop.dc.esri.com";
+
+        // Create map
+        var map = new Map("mapDiv", {
+            basemap: "gray",
+            center: [-122.5, 45.5],
+            zoom: 5
+        });
+
+        map.infoWindow.domNode.className += " light";
+
+        map.on("load", function () {
+            // addGeoJsonLayer("./data/dc-school-zones.json");
+            var query = getQueryParams(document.location.search);
+            if(query.dataset !== undefined && query.dataset !== null) {
+                addGeoJsonLayer("https://raw.githubusercontent.com/geoiq/gc_data/master/datasets/"+ query.dataset +".geojson");
+            }
+        });
+
+        function getQueryParams(qs) {
+            qs = qs.split('+').join(' ');
+
+            var params = {},
+                tokens,
+                re = /[?&]?([^=]+)=([^&]*)/g;
+
+            while (tokens = re.exec(qs)) {
+                params[decodeURIComponent(tokens[1])] = decodeURIComponent(tokens[2]);
+            }
+
+            return params;
+        }
+
+        function displayMetadata(metadata) {
+            dom.byId("dataset-name").innerHTML = metadata.name;
+            dom.byId("dataset-description").innerHTML = metadata.description;
+            dom.byId("dataset-feature_count").innerHTML = metadata.feature_count;
+            dom.byId("dataset-attribute_count").innerHTML = Object.keys(metadata.fields).length;
+            dom.byId("dataset-published").innerHTML = metadata.datePublished.getMonth()+1 + "/" + metadata.datePublished.getDate() + "/" + metadata.datePublished.getFullYear();
+            dom.byId("dataset-source").innerHTML = metadata.creator.source;
+
+            if(metadata.isBasedOnUrl !== undefined && metadata.isBasedOnUrl !== null) {
+                var parser = document.createElement('a');
+                parser.href = metadata.isBasedOnUrl;
+
+                dom.byId("dataset-url").innerHTML = parser.hostname;
+                dom.byId("dataset-url").href = metadata.isBasedOnUrl;
+            }
+            dom.byId("dataset-keywords").innerHTML = metadata.keywords;
+            dom.byId("dataset-featureserver").href = koop_url + "/github/geoiq/gc_data/datasets::"+metadata.id+".geojson/FeatureServer/0"
+            dom.byId("dataset-download-geojson").href = "https://raw.githubusercontent.com/geoiq/gc_data/master/datasets/"+metadata.id+".geojson"
+            dom.byId("dataset-view-geojson").href = "https://github.com/geoiq/gc_data/blob/master/datasets/"+metadata.id+".geojson"
+        }
+
+        function selectGeoJsonData(e) {
+            var url;
+            // Get the user input
+            if (e.target.nodeName === "SELECT") {
+                url = dom.byId("geoJsonUrl").value = e.target.options[e.target.selectedIndex].value;
+            } else {
+                url = dom.byId("geoJsonUrl").value;
+            }
+            // Add the layer
+            addGeoJsonLayer(url);
+        }
+
+        function addGeoJsonLayer(url) {
+            // Create the layer
+            var geoJsonLayer = new GeoJsonLayer({
+                url: url 
+            });
+
+            // Zoom to layer
+            geoJsonLayer.on("update-end", function (e) {
+                displayMetadata(e.target.metadata.dataset);
+                map.setExtent(e.target.extent.expand(1.2));
+                togglePanel();
+            });
+            // Add to map
+            map.addLayer(geoJsonLayer);
+
+        }
+
+        function togglePanel() {
+            if (query(".glyphicon.glyphicon-chevron-up")[0]) {
+                query("#toggle").replaceClass("glyphicon-chevron-down", "glyphicon-chevron-up");
+                query(".panel-body.collapse").removeClass("in");
+            } else {
+                query("#toggle").replaceClass("glyphicon-chevron-up", "glyphicon-chevron-down");
+                query(".panel-body.collapse").addClass("in");
+            }
+        }
+
+        on(query(".panel-heading")[0], "click", function () {
+            togglePanel();
+        });
+    });
+</script>
+</head>
+<body>
+    <div class="panel panel-primary panel-fixed">
+        <div class="panel-heading">
+            <h3 id="dataset-name" class="panel-title">Loading dataset...</h3>
+            <button id="chevron" class="btn btn-primary btn-xs btn-absolute">
+                <span id="toggle" class="glyphicon glyphicon-chevron-down"></span>
+            </button>
+        </div>
+        <div id="dataset-metadata" class="panel-body collapse">
+            <strong>Published</strong> <span id="dataset-published"></span><br>
+            <strong>Source</strong> <a id="dataset-source" href="" target="_new"></a><br>
+            <strong>Citation</strong> <a id="dataset-url" href="" target="_new"></a><br>
+            <span id="dataset-feature_count"></span> features <span id="dataset-attribute_count"></span> attributes<br>
+            <hr>
+            <div id="dataset-description"></div>
+            <strong>Keywords</strong>
+            <div id="dataset-keywords"></div>
+        </div>
+       <div class="panel-footer">
+            <a id="dataset-download-geojson" href="" target="_new">Download GeoJSON</a> - 
+            <a id="dataset-featureserver" href="" target="_new">Open in ArcGIS</a> - 
+            <a id="dataset-view-geojson" href="" target="_new">GitHub</a>
+       </div>
+
+    </div>
+    <div id="mapDiv"></div>
+</body>
+</html>
+
